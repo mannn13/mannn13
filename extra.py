@@ -1,88 +1,84 @@
+from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
-
-load_dotenv()
 import base64
-import streamlit as st
-import os
 import io
-from PIL import Image 
-import pdf2image
+import fitz  # PyMuPDF
 import google.generativeai as genai
+import os
 
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Load environment variables from a .env file
+load_dotenv()
 
-def get_gemini_response(input,pdf_cotent,prompt):
-    model=genai.GenerativeModel('gemini-pro-vision')
-    response=model.generate_content([input,pdf_content[0],prompt])
-    return response.text
+# Initialize Flask application
+app = Flask(__name__)
+
+# Directly set the API key here
+API_KEY = "AIzaSyCfK7onDcdE9YDsYs4x-qEPqHxjnUGvXR0"
+
+# Configure the Generative AI model with the API key
+genai.configure(api_key=API_KEY)
+
+def get_gemini_response(input_text, pdf_content, prompt):
+    try:
+        # Use the new model 'gemini-1.5-flash'
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content([input_text, pdf_content[0], prompt])
+        return response.text
+    except Exception as e:
+        return str(e)
 
 def input_pdf_setup(uploaded_file):
-    if uploaded_file is not None:
-        ## Convert the PDF to image
-        images=pdf2image.convert_from_bytes(uploaded_file.read())
+    try:
+        # Open the PDF file with PyMuPDF
+        pdf_document = fitz.open(stream=uploaded_file.read(), filetype='pdf')
+        if pdf_document.page_count == 0:
+            raise ValueError("No pages found in the PDF file")
 
-        first_page=images[0]
+        # Process the first page
+        page = pdf_document.load_page(0)
+        pix = page.get_pixmap()
 
-        # Convert to bytes
+        # Convert the image to bytes
         img_byte_arr = io.BytesIO()
-        first_page.save(img_byte_arr, format='JPEG')
-        img_byte_arr = img_byte_arr.getvalue()
+        img_data = pix.tobytes(output='png')  # Convert to PNG bytes
+        img_byte_arr.write(img_data)
+        img_byte_arr.seek(0)  # Reset stream position to the beginning
+        img_data = img_byte_arr.getvalue()
 
+        # Return base64 encoded image data
         pdf_parts = [
             {
-                "mime_type": "image/jpeg",
-                "data": base64.b64encode(img_byte_arr).decode()  # encode to base64
+                "mime_type": "image/png",
+                "data": base64.b64encode(img_data).decode()  # Encode to base64
             }
         ]
         return pdf_parts
-    else:
-        raise FileNotFoundError("No file uploaded")
+    except Exception as e:
+        raise ValueError(f"Error processing PDF file: {e}")
 
-## Streamlit App
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-st.set_page_config(page_title="ATS Resume EXpert")
-st.header("ATS Tracking System")
-input_text=st.text_area("Job Description: ",key="input")
-uploaded_file=st.file_uploader("Upload your resume(PDF)...",type=["pdf"])
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    try:
+        input_text = request.form['input_text']
+        prompt = request.form['prompt']
+        file = request.files.get('resume')
 
+        if not input_text or not prompt:
+            return jsonify({'error': 'Input text and prompt are required'}), 400
 
-if uploaded_file is not None:
-    st.write("PDF Uploaded Successfully")
+        if file and file.filename.lower().endswith('.pdf'):
+            pdf_content = input_pdf_setup(file)
+            response = get_gemini_response(input_text, pdf_content, prompt)
+            return jsonify({'response': response})
+        else:
+            return jsonify({'error': 'Invalid file or no file uploaded'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-
-submit1 = st.button("Tell Me About the Resume")
-
-#submit2 = st.button("How Can I Improvise my Skills")
-
-submit3 = st.button("Percentage match")
-
-input_prompt1 = """
- You are an experienced Technical Human Resource Manager,your task is to review the provided resume against the job description. 
-  Please share your professional evaluation on whether the candidate's profile aligns with the role. 
- Highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.
-"""
-
-input_prompt3 = """
-You are an skilled ATS (Applicant Tracking System) scanner with a deep understanding of data science and ATS functionality, 
-your task is to evaluate the resume against the provided job description. give me the percentage of match if the resume matches
-the job description. First the output should come as percentage and then keywords missing and last final thoughts.
-"""
-
-if submit1:
-    if uploaded_file is not None:
-        pdf_content=input_pdf_setup(uploaded_file)
-        response=get_gemini_response(input_prompt1,pdf_content,input_text)
-        st.subheader("The Repsonse is")
-        st.write(response)
-    else:
-        st.write("Please uplaod the resume")
-
-elif submit3:
-    if uploaded_file is not None:
-        pdf_content=input_pdf_setup(uploaded_file)
-        response=get_gemini_response(input_prompt3,pdf_content,input_text)
-        st.subheader("The Repsonse is")
-        st.write(response)
-    else:
-        st.write("Please uplaod the resume")
+if __name__ == '__main__':
+    app.run(debug=True)
 
