@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hey!! I am here to help you with your resume</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        textarea, input[type="file"], button {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        textarea {
+            height: 150px;
+        }
+        .response {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hey!! I am here to help you with your resume </h1>
+        <textarea id="job-description" placeholder="Job Description"></textarea>
+        <input type="file" id="resume-upload" accept=".pdf">
+        <button onclick="analyzeResume('input')">Tell Me About the Resume</button>
+        <button onclick="analyzeResume('match')">Percentage Match</button>
+        <div class="response" id="response-container"></div>
+    </div>
+
+    <script>
+        function analyzeResume(type) {
+            var inputText = document.getElementById('job-description').value;
+            var resumeFile = document.getElementById('resume-upload').files[0];
+            var prompt = type === 'input' ? 
+                `You are an experienced Technical Human Resource Manager, your task is to review the provided resume against the job description. Please share your professional evaluation on whether the candidate's profile aligns with the role. Highlight the strengths and weaknesses of the applicant in relation to the specified job requirements.` :
+                `You are an skilled ATS (Applicant Tracking System) scanner with a deep understanding of data science and ATS functionality, your task is to evaluate the resume against the provided job description. Give me the percentage of match if the resume matches the job description. First the output should come as percentage and then keywords missing and last final thoughts.`;
+
+            var formData = new FormData();
+            formData.append('input_text', inputText);
+            formData.append('prompt', prompt);
+            formData.append('resume', resumeFile);
+
+            fetch('/analyze', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('response-container').textContent = data.response || data.error;
+            })
+            .catch(error => {
+                document.getElementById('response-container').textContent = 'An error occurred: ' + error;
+            });
+        }
+    </script>
+</body>
+</html>
