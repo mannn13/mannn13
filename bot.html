@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-box">
+            <div class="chat-history">
+                {% if conversation %}
+                    {% for line in conversation.split('\n') %}
+                        <p>{{ line }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <form method="post" class="chat-form">
+                <input type="text" name="question" placeholder="Ask me something..." required>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
